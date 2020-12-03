@@ -1,7 +1,6 @@
 import cv2
 import time
 import os
-import pathlib
 
 CONFIDENCE_THRESHOLD = 0.2
 NMS_THRESHOLD = 0.4
@@ -45,6 +44,11 @@ while vc.isOpened():
         label = "%s : %f" % (class_names[classid[0]], score)
         cv2.rectangle(frame, box, color, 2)
         cv2.putText(frame, label, (box[0], box[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+        # TODO: add function to find center of person
+
+    # TODO: find distance between all pairs of detected people
+
     end_drawing = time.time()
     
     fps_label = "FPS: %.2f (excluding drawing time of %.2fms)" % (1 / (end - start), (end_drawing - start_drawing) * 1000)
@@ -55,5 +59,3 @@ while vc.isOpened():
     frame_number += 1
     if frame_number > 60:  # for quick testing
         break
-
-# run this for imshow
