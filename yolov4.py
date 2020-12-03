@@ -6,7 +6,7 @@ NMS_THRESHOLD = 0.4
 COLORS = [(0, 255, 255), (255, 255, 0), (0, 255, 0), (255, 0, 0)]
 
 class_names = []
-with open("classes.txt", "r") as f:
+with open("darknet/classes.txt", "r") as f:
     class_names = [cname.strip() for cname in f.readlines()]
 
 # vc = cv2.VideoCapture("http://192.168.2.60:4747/video")  # TODO: for droid cam
