@@ -1,22 +1,27 @@
 import cv2
 import time
+import os
+import pathlib
 
 CONFIDENCE_THRESHOLD = 0.2
 NMS_THRESHOLD = 0.4
 COLORS = [(0, 255, 255), (255, 255, 0), (0, 255, 0), (255, 0, 0)]
 
-class_names = []
-with open("darknet/classes.txt", "r") as f:
+with open("./darknet/classes.txt", "r") as f:
     class_names = [cname.strip() for cname in f.readlines()]
 
 # vc = cv2.VideoCapture("http://192.168.2.60:4747/video")  # TODO: for droid cam
 
 file_name = "starbucks"  # to help with saving later
 extention = "mp4"
-relative_path = f"../Videos/{file_name}.{extention}"
+relative_path = f"./Videos/{file_name}.{extention}"
+output_folder = "Output"
+
+os.makedirs(output_folder, exist_ok=True)
+
 vc = cv2.VideoCapture(relative_path)
 
-net = cv2.dnn.readNet("yolov4.weights", "cfg/yolov4.cfg")
+net = cv2.dnn.readNet("darknet/yolov4.weights", "darknet/cfg/yolov4.cfg")
 net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
 net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA_FP16)
 
@@ -45,10 +50,10 @@ while vc.isOpened():
     fps_label = "FPS: %.2f (excluding drawing time of %.2fms)" % (1 / (end - start), (end_drawing - start_drawing) * 1000)
     print(fps_label)
     cv2.putText(frame, fps_label, (0, 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
-    cv2.imwrite(f"../Output/{file_name}_{frame_number}.jpg", frame)
+    cv2.imwrite(f"./{output_folder}/{file_name}_{frame_number}.jpg", frame)
     # cv2.imshow("detections", frame)   # TODO: can change, doesn't work on wsl without extra software
     frame_number += 1
-    if frame_number >= 60:  # for quick testing
+    if frame_number > 60:  # for quick testing
         break
 
 # run this for imshow
