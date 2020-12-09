@@ -120,7 +120,7 @@ for r in range(height):
 
 cv2.imwrite(f'{output_folder}/test_homography.jpg', new_img[:,:,::-1])
 
-ground_video = cv2.VideoWriter(f'./{output_folder}/{file_name}_ground.avi', fourcc, fps, (floor_width, floor_depth))
+ground_video = cv2.VideoWriter(f'./{output_folder}/{file_name}_ground.avi', fourcc, fps, (floor_width*2, floor_depth))
 
 frame_number = 0
 while vc.isOpened():
@@ -171,10 +171,11 @@ while vc.isOpened():
 
     # Save the image frame
     # cv2.imwrite(f"./{output_folder}/{file_name}_{frame_number}.jpg", frame)
-
+    
     # Write the frame to the videowriter
+    combined_frames = np.hstack((cv2.resize(frame, (floor_depth, floor_width)), ground_plane))
     video.write(frame)
-    ground_video.write(ground_plane)
+    ground_video.write(combined_frames)
 
     # Show the frame with imshow, TODO: can change, doesn't work on wsl without extra software
     # cv2.imshow("detections", frame)
