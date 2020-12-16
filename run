@@ -1,0 +1,52 @@
+#!/bin/bash
+# Check for correct usage
+if [ $_ == $0 ]; then
+    echo basename $0
+    echo "Script must be sourced"
+    echo -e "\nUsage: source run [bootstrap, live, video, help] [filename]"
+    return
+fi
+if [ $# -gt 2 ] || [ $# -lt 1 ]; then
+    echo hi
+    echo -e "\nUsage: source run [2nd check, bootstrap, live, video, help] [filename]"
+    return
+fi
+
+case $1 in
+    "bootstrap")
+        sudo apt update
+        sudo apt upgrade
+        
+        # Install dependencies
+        pip3 install -r requirements.txt
+    ;;
+    "live")
+        # Start the live social distancing program
+        if [ -z "$2" ]; then
+        echo no args
+            python live_detection.py
+        else [ -e "$2" ];
+            echo given arg
+            python live_detection.py $2
+        fi
+    ;;
+    "video")
+        if [ -z "$2" ]; then
+            python yolov4.py
+        elif [ -e "$2" ]; then
+            python yolov4.py $2
+        else
+            echo "Given video file does not exist"
+        fi
+    ;;
+    "help")
+        echo -e "\nUsage: source run [bootstrap, live, video, help] [filename]\n"
+        echo -e "\tbootstrap: Run this to install dependencies for the project. Run once before anything else."
+        echo -e "\tlive [ip]: Run the live detector with the predefined or given camera IP."
+        echo -e "\tvideo [video_file]: Run the video detector on the predefined or given video file."
+        echo -e "\thelp: usage of run"
+    ;;
+    *)
+        echo -e "\nUsage: source `basename $0` [bootstrap,dev,prod,tests,help] [client,server]\n"
+    ;;
+esac
