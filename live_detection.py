@@ -1,36 +1,49 @@
+from matplotlib.widgets import Cursor
+import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 import time
-import os
 import itertools
-import matplotlib as mpl
-mpl.use('Agg')
-import matplotlib.pyplot as plt
-from scipy.ndimage import gaussian_filter
+import sys
+from webcam import VideoScreenshot
 from person import Person
 from config import *
 
-###### Choose the video we want to run on ######
-# Check for inputted video file, else use default
+# Check for inputted video source, otherwise use default
 if len(sys.argv) > 1:
-    file_name, extention = sys.argv[1].split(".")
-    fps = 25
+    src = sys.argv[1]
+    print(src)
+    exit
 else:
-    file_name, fps = "EnterExitCrossingPaths2front_10fps", 10
-    # file_name, fps = "EnterExitCrossingPaths2front_shortened", 25
-    extention = "mp4"
+    src = "http://192.168.2.13:4747/video"
 
-###### Setup the relative input/output folders ######
-relative_path = f"./Videos/{file_name}.{extention}"
-output_folder = "Output"
-os.makedirs(output_folder, exist_ok=True)
+vc = VideoScreenshot(src)
 
-###### Setup the video capture and video writer objects ######
-vc = cv2.VideoCapture(relative_path)
-(grabbed, frame) = vc.read() # Steal the first frame to get the size hahaha 
+grabbed = False
+while not grabbed:
+    (grabbed, frame) = vc.read()
 height, width = frame.shape[0], frame.shape[1]
-fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
-video_writer = cv2.VideoWriter(f'./{output_folder}/{file_name}_detection.avi', fourcc, fps, (width,height))
+print(f'height={height}, width={width}')
+
+fig = plt.figure(figsize=(12, 12))
+ax = fig.add_subplot(111)
+larger_frame = np.pad(frame[:,:,::-1], ((height//2,), (width//2,), (0,)))
+ax.imshow(larger_frame, origin='upper', extent=[-width//2, width+width//2, height+height//2, -height//2])
+
+cursor = Cursor(ax, useblit=True, color='red', linewidth=2)
+plt.draw()
+
+text = ('Select top-left, top-right, bottom-left and bottom-right corners with mouse')
+print(text)
+plt.title(text, fontsize=16)
+pts = np.asarray(plt.ginput(4))
+plt.close()
+print(pts)
+
+
+################################################################
+################################################################
+################################################################
 
 ###### Setup the detection model with preferable gpu usage ######
 net = cv2.dnn.readNet("darknet/yolov4.weights", "darknet/cfg/yolov4.cfg")
@@ -40,30 +53,30 @@ model = cv2.dnn_DetectionModel(net)
 model.setInputParams(size=(416, 416), scale=1/255)
 
 ###### Fit the homography matrix mapping for the sample mall video ######
-src_pts = np.array([[60, 153], [359, 153], [50, 201], [367, 200]])
-dst_pts = np.array([[0, 0], [0, 975], [382, 98], [382, 878]])
-floor_depth, floor_width =  1100, 1100
+src_pts = pts
+dst_pts = np.array([[0, 0], [0, width], [height, 0], [height, width]])
+floor_depth, floor_width =  height, width
 M, mask = cv2.findHomography(src_pts, dst_pts, 0)
 scale_h, scale_w = floor_depth/height, floor_width/width
 
-historical_img = np.zeros((floor_depth, floor_width, 1))
-def add_to_heatmap(img):
-    if img.ndim == 3:
-        img = np.mean(img, 2)
+# historical_img = np.zeros((floor_depth, floor_width, 1))
+# def add_to_heatmap(img):
+#     if img.ndim == 3:
+#         img = np.mean(img, 2)
 
-    img[img==grey_val] = 0 # Remove the grey background
-    img[img>0] = 1
-    img = img[::-1,].reshape(img.shape + (1,))
+#     img[img==grey_val] = 0 # Remove the grey background
+#     img[img>0] = 1
+#     img = img[::-1,].reshape(img.shape + (1,))
 
-    global historical_img
-    historical_img = np.concatenate((historical_img, img), axis=2)
+#     global historical_img
+#     historical_img = np.concatenate((historical_img, img), axis=2)
 
-fig, ax = plt.subplots()
-def draw_heatmap(frame_number):
-    heatmap = gaussian_filter(np.sum(historical_img, 2), 1)
-    ax.pcolormesh(heatmap, cmap='seismic', vmin=-historical_img.max(), vmax=historical_img.max(), alpha=0.5)
-    fig.savefig(f"./{output_folder}/colormap_frame_{frame_number}.jpg")
-    ax.clear()
+# fig, ax = plt.subplots()
+# def draw_heatmap(frame_number):
+#     heatmap = gaussian_filter(np.sum(historical_img, 2), 1)
+#     ax.pcolormesh(heatmap, cmap='seismic', vmin=-historical_img.max(), vmax=historical_img.max(), alpha=0.5)
+#     fig.savefig(f"./{output_folder}/colormap_frame_{frame_number}.jpg")
+#     ax.clear()
 
 def scale_box(box):
     box = list(box)
@@ -76,12 +89,9 @@ def scale_box(box):
 def scale_coords(coords):
     return (int(coords[0]*scale_w), int(coords[1]*scale_h)) 
 
-###### Setup the video writer for the combined video detection + 2d floor location points ######
-ground_video = cv2.VideoWriter(f'./{output_folder}/{file_name}_ground.avi', fourcc, fps, (floor_width*2, floor_depth))
-
 
 frame_number = 0
-while vc.isOpened():
+while cv2.waitKey(1) < 1:
     detected_people = []
     red_pairs = []
     
@@ -94,8 +104,8 @@ while vc.isOpened():
     classes, scores, boxes = model.detect(frame, CONFIDENCE_THRESHOLD, NMS_THRESHOLD)
     end = time.time()
 
-    # Resize frame
-    frame = cv2.resize(frame, (floor_depth, floor_width))
+    # # Resize frame
+    # frame = cv2.resize(frame, (floor_depth, floor_width))
 
     # Init a gray ground plane image 
     ground_plane = np.ones((floor_depth, floor_width, 3), np.uint8) * grey_val
@@ -128,7 +138,9 @@ while vc.isOpened():
         cv2.putText(frame, label, (box[0], box[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2) 
 
         # draw a circle where the person is on the ground plane frame
-        cv2.circle(ground_plane, (person.ground_x, person.ground_y+700), 15, color, -1)
+        ground_pos = (person.ground_x, person.ground_y)
+        print(ground_pos)
+        cv2.circle(ground_plane, (person.ground_x, person.ground_y), 15, color, -1)
 
     # Draw the red lines between people not social distancing
     for (person, other) in red_pairs:
@@ -136,12 +148,12 @@ while vc.isOpened():
         other_mid = scale_coords(other.middle)
         cv2.line(frame, person_mid, other_mid, red, 2) 
 
-        person_ground_coords = (person.ground_x, person.ground_y+700)
-        other_ground_coords = (other.ground_x, other.ground_y+700)
+        person_ground_coords = (person.ground_x, person.ground_y)
+        other_ground_coords = (other.ground_x, other.ground_y)
         cv2.line(ground_plane, person_ground_coords, other_ground_coords, red, 2) 
 
-    add_to_heatmap(ground_plane.copy())
-    draw_heatmap(frame_number)
+    # add_to_heatmap(ground_plane.copy())
+    # draw_heatmap(frame_number)
     end_drawing = time.time()
     
     fps_label = "FPS: %.2f (excluding drawing time of %.2fms)" % (1 / (end - start), (end_drawing - start_drawing) * 1000)
@@ -149,22 +161,21 @@ while vc.isOpened():
     box_coords = ((0, 40), (0 + text_width + 5, 25 - text_height - 5)) # (bottom left corner, upper right corner) I THINK!!?!
     cv2.rectangle(frame, box_coords[0], box_coords[1], black, cv2.FILLED)
     cv2.putText(frame, fps_label, (0, 25), cv2.FONT_HERSHEY_SIMPLEX, 1, white, 2)
-    print(frame_number, fps_label)
+    # print(frame_number, fps_label)
 
     # Save the image frame
     # cv2.imwrite(f"./{output_folder}/{file_name}_{frame_number}.jpg", frame)
     
     # Write the frame to the videowriter
     combined_frames = np.hstack((frame, ground_plane))
-    video_writer.write(frame)
-    ground_video.write(combined_frames)
+    # video_writer.write(frame)
+    # ground_video.write(combined_frames)
 
     # Show the frame with imshow, TODO: can change, doesn't work on wsl without extra software
-    # cv2.imshow("detections", frame)
+    cv2.imshow("detections", combined_frames)
 
     frame_number += 1
     # if frame_number > 125:  # for quick testing
     #     break
 
-video.release()
-ground_video.release()
+
