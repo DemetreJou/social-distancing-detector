@@ -1,32 +1,41 @@
 from scipy.ndimage import gaussian_filter
-import numpy
-
+import matplotlib.pyplot as plt
+plt.ion()
+import numpy as np
+import cv2
 
 class Heatmap:
     def __init__(self, height, width):
-        self.historical = np.zeros((height, width, 1))
+        self.historical = np.zeros((height, width))
+        self.fig, self.ax = plt.subplots()
 
     @property
     def heatmap(self):
-        return gaussian_filter(np.sum(self.historical, 2), 3)
+        return gaussian_filter(self.historical, 3)
 
     def add_frame_to_heatmap(self, frame):
         if frame.ndim == 3:
             frame = np.mean(frame, 2)
 
-        frame[frame==grey_val] = 0 # Remove the grey background
-        frame[frame > 0] = 1
-        frame = frame[::-1,].reshape(frame.shape + (1,))
+        frame[frame > 1] = 1
 
         global historical
-        self.historical = np.concatenate((self.historical, frame), axis=2)
+        self.historical += frame
 
     # name = f"./{output_folder}/colormap_frame_{frame_number}.jpg"
-    def save_heatmap_plot(self, name):
-        fig, ax = plt.subplots()
-        ax.pcolormesh(self.heatmap, cmap='seismic', vmin=-historical_img.max(), vmax=historical_img.max(), alpha=0.5)
-        fig.savefig(name)
-        ax.clear()
+    def save_heatmap_plot(self, name, frame, M_inv):
+        self.ax.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        inv_warpped = cv2.warpPerspective(self.heatmap, M_inv, self.historical.shape[::-1])
+        self.ax.pcolormesh(inv_warpped, cmap='seismic', alpha=0.15)
+        plt.show()
 
-    def show_heatmap(self):
-        cv2.imshow("Heatmap", self.heatmap)
+        self.fig.savefig(name)
+        self.ax.clear()
+
+    def show_heatmap_plot(self, frame, M_inv):
+        self.ax.clear()
+        self.ax.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        inv_warpped = cv2.warpPerspective(self.heatmap, M_inv, self.historical.shape[::-1])
+        self.ax.pcolormesh(inv_warpped, cmap='seismic', vmin=-self.historical.max(), vmax=self.historical.max(), alpha=0.15)
+        plt.pause(0.001)
+

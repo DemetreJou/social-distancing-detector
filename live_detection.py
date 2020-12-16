@@ -5,6 +5,7 @@ import cv2
 import time
 import itertools
 import sys
+from heatmap import Heatmap
 from webcam import VideoScreenshot
 from person import Person
 from config import *
@@ -12,13 +13,14 @@ from config import *
 # Check for inputted video source, otherwise use default
 if len(sys.argv) > 1:
     src = sys.argv[1]
-    print(src)
     exit
 else:
     src = "http://192.168.2.13:4747/video"
 
+# Instantiate the live video reader to read lastest frames
 vc = VideoScreenshot(src)
 
+###### User homography setup stage ######
 grabbed = False
 while not grabbed:
     (grabbed, frame) = vc.read()
@@ -34,7 +36,6 @@ cursor = Cursor(ax, useblit=True, color='red', linewidth=2)
 plt.draw()
 
 text = ('Select top-left, top-right, bottom-left and bottom-right corners with mouse')
-print(text)
 plt.title(text, fontsize=16)
 pts = np.asarray(plt.ginput(4))
 plt.close()
@@ -57,6 +58,7 @@ src_pts = pts
 dst_pts = np.array([[0, 0], [0, width], [height, 0], [height, width]])
 floor_depth, floor_width =  height, width
 M, mask = cv2.findHomography(src_pts, dst_pts, 0)
+M_inv, mask_inv = cv2.findHomography(np.array([[0, 0], [width, 0], [0, height], [width, height]]), src_pts, 0)
 scale_h, scale_w = floor_depth/height, floor_width/width
 
 # historical_img = np.zeros((floor_depth, floor_width, 1))
@@ -77,6 +79,9 @@ scale_h, scale_w = floor_depth/height, floor_width/width
 #     ax.pcolormesh(heatmap, cmap='seismic', vmin=-historical_img.max(), vmax=historical_img.max(), alpha=0.5)
 #     fig.savefig(f"./{output_folder}/colormap_frame_{frame_number}.jpg")
 #     ax.clear()
+
+detection_heatmap = Heatmap(floor_depth, floor_width)
+
 
 def scale_box(box):
     box = list(box)
@@ -107,8 +112,8 @@ while cv2.waitKey(1) < 1:
     # # Resize frame
     # frame = cv2.resize(frame, (floor_depth, floor_width))
 
-    # Init a gray ground plane image 
-    ground_plane = np.ones((floor_depth, floor_width, 3), np.uint8) * grey_val
+    # Init a ground plane image 
+    ground_plane = np.zeros((floor_depth, floor_width, 3), np.uint8)
 
     start_drawing = time.time()
     for (classid, score, box) in zip(classes, scores, boxes):
@@ -139,7 +144,6 @@ while cv2.waitKey(1) < 1:
 
         # draw a circle where the person is on the ground plane frame
         ground_pos = (person.ground_x, person.ground_y)
-        print(ground_pos)
         cv2.circle(ground_plane, (person.ground_x, person.ground_y), 15, color, -1)
 
     # Draw the red lines between people not social distancing
@@ -152,8 +156,14 @@ while cv2.waitKey(1) < 1:
         other_ground_coords = (other.ground_x, other.ground_y)
         cv2.line(ground_plane, person_ground_coords, other_ground_coords, red, 2) 
 
-    # add_to_heatmap(ground_plane.copy())
-    # draw_heatmap(frame_number)
+    # Add the current frame to the heatmap
+    detection_heatmap.add_frame_to_heatmap(ground_plane.copy())
+    # detection_heatmap.save_heatmap_plot(f"./Output/colormap_frame_{frame_number}.jpg", frame, M_inv)
+    detection_heatmap.show_heatmap_plot(frame, M_inv)
+    
+    # Add the grey background
+    ground_plane[ground_plane == 0] = grey_val
+
     end_drawing = time.time()
     
     fps_label = "FPS: %.2f (excluding drawing time of %.2fms)" % (1 / (end - start), (end_drawing - start_drawing) * 1000)
@@ -166,16 +176,12 @@ while cv2.waitKey(1) < 1:
     # Save the image frame
     # cv2.imwrite(f"./{output_folder}/{file_name}_{frame_number}.jpg", frame)
     
-    # Write the frame to the videowriter
+    # Combine the frames side by side
     combined_frames = np.hstack((frame, ground_plane))
-    # video_writer.write(frame)
-    # ground_video.write(combined_frames)
 
     # Show the frame with imshow, TODO: can change, doesn't work on wsl without extra software
     cv2.imshow("detections", combined_frames)
 
     frame_number += 1
-    # if frame_number > 125:  # for quick testing
-    #     break
-
-
+    # if frame_number > 50:  # for quick testing
+        # break
