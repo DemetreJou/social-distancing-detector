@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import time
 import os
+import sys
 import itertools
 import matplotlib as mpl
 mpl.use('Agg')
@@ -45,25 +46,6 @@ dst_pts = np.array([[0, 0], [0, 975], [382, 98], [382, 878]])
 floor_depth, floor_width =  1100, 1100
 M, mask = cv2.findHomography(src_pts, dst_pts, 0)
 scale_h, scale_w = floor_depth/height, floor_width/width
-
-historical_img = np.zeros((floor_depth, floor_width, 1))
-def add_to_heatmap(img):
-    if img.ndim == 3:
-        img = np.mean(img, 2)
-
-    img[img==grey_val] = 0 # Remove the grey background
-    img[img>0] = 1
-    img = img[::-1,].reshape(img.shape + (1,))
-
-    global historical_img
-    historical_img = np.concatenate((historical_img, img), axis=2)
-
-fig, ax = plt.subplots()
-def draw_heatmap(frame_number):
-    heatmap = gaussian_filter(np.sum(historical_img, 2), 1)
-    ax.pcolormesh(heatmap, cmap='seismic', vmin=-historical_img.max(), vmax=historical_img.max(), alpha=0.5)
-    fig.savefig(f"./{output_folder}/colormap_frame_{frame_number}.jpg")
-    ax.clear()
 
 def scale_box(box):
     box = list(box)
@@ -140,8 +122,7 @@ while vc.isOpened():
         other_ground_coords = (other.ground_x, other.ground_y+700)
         cv2.line(ground_plane, person_ground_coords, other_ground_coords, red, 2) 
 
-    add_to_heatmap(ground_plane.copy())
-    draw_heatmap(frame_number)
+
     end_drawing = time.time()
     
     fps_label = "FPS: %.2f (excluding drawing time of %.2fms)" % (1 / (end - start), (end_drawing - start_drawing) * 1000)

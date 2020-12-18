@@ -136,6 +136,8 @@ while cv2.waitKey(1) < 1:
     for person in detected_people:
         label = "%s : %f" % ("person", person.score)
         color = green if person.social_distancing else red
+        if color == green:
+            continue
 
         # draw a rectangle around the person on the image frame
         box = scale_box(person.box)
@@ -156,10 +158,26 @@ while cv2.waitKey(1) < 1:
         other_ground_coords = (other.ground_x, other.ground_y)
         cv2.line(ground_plane, person_ground_coords, other_ground_coords, red, 2) 
 
-    # Add the current frame to the heatmap
+    # Add the current frame to the heatmap, then save or show heatmap
     detection_heatmap.add_frame_to_heatmap(ground_plane.copy())
     # detection_heatmap.save_heatmap_plot(f"./Output/colormap_frame_{frame_number}.jpg", frame, M_inv)
     detection_heatmap.show_heatmap_plot(frame, M_inv)
+
+    # Draw the The red/green boxes and circles
+    for person in detected_people:
+        label = "%s : %f" % ("person", person.score)
+        color = green if person.social_distancing else red
+        if color == red:
+            continue
+
+        # draw a rectangle around the person on the image frame
+        box = scale_box(person.box)
+        cv2.rectangle(frame, box, color, 2)
+        cv2.putText(frame, label, (box[0], box[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2) 
+
+        # draw a circle where the person is on the ground plane frame
+        ground_pos = (person.ground_x, person.ground_y)
+        cv2.circle(ground_plane, (person.ground_x, person.ground_y), 15, color, -1)
     
     # Add the grey background
     ground_plane[ground_plane == 0] = grey_val
@@ -183,5 +201,5 @@ while cv2.waitKey(1) < 1:
     cv2.imshow("detections", combined_frames)
 
     frame_number += 1
-    # if frame_number > 50:  # for quick testing
-        # break
+    if frame_number % 60 == 0:
+        detection_heatmap.save_heatmap_plot(f"./Output/colormap_frame_{frame_number}.jpg", frame, M_inv)
