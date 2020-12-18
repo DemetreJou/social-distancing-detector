@@ -1,4 +1,4 @@
-Follow this guide for setting up darknet, but be warned setting cuda on wsl didn't go well for me
+Follow this guide for setting up darknet, but be warned setting cuda on wsl isn't that straight forward
 
 https://robocademy.com/2020/05/01/a-gentle-introduction-to-yolo-v4-for-object-detection-in-ubuntu-20-04/
 
